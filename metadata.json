@@ -1,6 +1,6 @@
 {
-  "name": "MegaPrint",
-  "description": "Mega.nz üzerinden Excel ve Word dosyalarını tek tuşla yazdıran web uygulaması",
+  "name": "High-Performance Static Web App",
+  "description": "A performance-focused web application designed for seamless hosting on GitHub Pages as a static SPA.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
