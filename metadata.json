@@ -1,0 +1,6 @@
+{
+  "name": "MegaPrint",
+  "description": "Mega.nz üzerinden Excel ve Word dosyalarını tek tuşla yazdıran web uygulaması",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
