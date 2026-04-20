@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, FileSpreadsheet, FileText, Printer, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from './lib/utils';
+import { File } from 'megajs';
+import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 
 type FileItem = {
   id: string;
@@ -8,7 +11,17 @@ type FileItem = {
   type: 'word' | 'excel';
   size: string;
   date: string;
+  _node?: any;
 };
+
+function formatBytes(bytes: number, decimals = 2) {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+}
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(false);
@@ -23,23 +36,44 @@ export default function App() {
       setFiles([]);
       
       try {
-        const res = await fetch('/api/mega/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ link: linkToConnect })
-        });
+        const folder = File.fromURL(linkToConnect);
+        await folder.loadAttributes();
         
-        const data = await res.json();
-        if (res.ok) {
-          setIsConnected(true);
-          setFiles(data.files);
+        const newFiles: FileItem[] = [];
+        
+        const collectFiles = (node: any) => {
+            if (node.directory) {
+                if (node.children) {
+                    node.children.forEach(collectFiles);
+                }
+            } else {
+                const name = node.name || '';
+                const lowerName = name.toLowerCase();
+                if (lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls') || lowerName.endsWith('.docx')) {
+                    newFiles.push({
+                        id: node.id || Math.random().toString(),
+                        name: name,
+                        size: formatBytes(node.size),
+                        type: lowerName.includes('.xls') ? 'excel' : 'word',
+                        date: node.timestamp ? new Date(node.timestamp * 1000).toISOString().split('T')[0] : 'Bilinmiyor',
+                        _node: node
+                    });
+                }
+            }
+        };
+
+        if (folder.directory && folder.children) {
+            folder.children.forEach(collectFiles);
         } else {
-          alert(data.error || "Bağlantı başarısız");
-          setIsConnected(false);
+            collectFiles(folder);
         }
+
+        setFiles(newFiles);
+        setIsConnected(true);
       } catch (err) {
-        console.error(err);
-        alert("Bir hata oluştu. Linkin doğru olduğundan emin olun.");
+        console.error("Mega bağlantı hatası:", err);
+        alert("Bağlantı başarısız. Lütfen geçerli bir Link girdiğinizden emin olun.");
+        setIsConnected(false);
       } finally {
         setIsConnecting(false);
       }
@@ -55,33 +89,54 @@ export default function App() {
     performConnection(megaLink);
   };
 
-  const handlePrint = async (id: string, name: string) => {
-    setPrintingId(id);
+  const handlePrint = async (file: FileItem) => {
+    setPrintingId(file.id);
     
     try {
-      const res = await fetch('/api/mega/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ link: megaLink, fileName: name })
-      });
-
-      const data = await res.json();
+      if (!file._node) throw new Error("Dosya verisi bulunamadı");
       
-      if (res.ok) {
-        setHtmlContent(data.html);
-        
-        // DOM update olması için biraz süre tanıyıp yazdır menüsünü açıyoruz
-        setTimeout(() => {
-            window.print();
-            setPrintingId(null);
-        }, 800);
-      } else {
-        alert(data.error || "Dosya alınamadı");
-        setPrintingId(null);
+      // Megadan dosyayı ArrayBuffer objesi olarak indir (Tarayıcı ortamı)
+      const bufferData = await file._node.downloadBuffer();
+      const dataArray = new Uint8Array(bufferData);
+      
+      let html = '';
+      const lowerName = file.name.toLowerCase();
+
+      if (lowerName.endsWith('.docx')) {
+          // Promise based Mammoth execution
+          const arrayBuffer = dataArray.buffer.slice(dataArray.byteOffset, dataArray.byteOffset + dataArray.byteLength);
+          const result = await mammoth.convertToHtml({ arrayBuffer });
+          html = `<div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto;">${result.value}</div>`;
+      } else if (lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')) {
+          const workbook = XLSX.read(dataArray, { type: 'array' });
+          for (const sheetName of workbook.SheetNames) {
+              const sheet = workbook.Sheets[sheetName];
+              
+              // Her sayfayı başlığıyla yazdırmak
+              html += `<div style="font-family: Arial, sans-serif; page-break-after: always; max-width: 100vw; overflow-x: auto;">`;
+              html += `<h2 style="margin-top: 24px; margin-bottom: 16px; font-size: 20px;">${sheetName}</h2>`;
+              
+              let tableHtml = XLSX.utils.sheet_to_html(sheet);
+              tableHtml = tableHtml.replace(/<table/g, '<table style="min-width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px;" border="1" cellpadding="6"')
+                                   .replace(/<th/g, '<th style="background-color: #f3f4f6; text-align: left;"')
+                                   .replace(/<td/g, '<td style="border: 1px solid #d1d5db;"');
+              
+              html += tableHtml;
+              html += `</div>`;
+          }
       }
+      
+      setHtmlContent(html);
+      
+      // DOM update olması için biraz süre tanıyıp yazdır menüsünü açıyoruz
+      setTimeout(() => {
+          window.print();
+          setPrintingId(null);
+      }, 1000);
+      
     } catch (err) {
-      console.error(err);
-      alert("Yazdırma işleminde hata oluştu");
+      console.error("Yazdırma hatası:", err);
+      alert("Dosya içeriği okunurken bir hata oluştu.");
       setPrintingId(null);
     }
   };
@@ -166,8 +221,15 @@ export default function App() {
             </div>
 
             {files.length === 0 ? (
-              <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-300">
-                <p className="text-slate-500">Bu klasörde Excel (.xlsx) veya Word (.docx) dosyası bulunamadı.</p>
+              <div className="text-center py-12 bg-white rounded-xl border border-dashed border-slate-300 transition-all">
+                {isConnecting ? (
+                  <div className="flex flex-col items-center justify-center gap-3">
+                     <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                     <p className="text-slate-500">Dosyalar kontrol ediliyor...</p>
+                  </div>
+                ) : (
+                  <p className="text-slate-500">Bu klasörde Excel (.xlsx) veya Word (.docx) dosyası bulunamadı.</p>
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -188,7 +250,7 @@ export default function App() {
                       </div>
                       <div>
                         <button
-                          onClick={() => handlePrint(file.id, file.name)}
+                          onClick={() => handlePrint(file)}
                           disabled={printingId !== null}
                           className={cn(
                             "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all shadow-sm shrink-0",
