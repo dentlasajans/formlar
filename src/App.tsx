@@ -1,9 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ReactNode } from 'react';
 import { Cloud, FileSpreadsheet, FileText, Printer, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { File } from 'megajs';
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
+
+class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: Error | null}> {
+  constructor(props: {children: ReactNode}) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-10 bg-red-50 text-red-900 min-h-screen">
+          <h1 className="text-2xl font-bold mb-4">Uygulama Yüklenirken Hata Oluştu!</h1>
+          <pre className="bg-white p-4 rounded border whitespace-pre-wrap">
+            {this.state.error?.message}
+            {'\n\n'}
+            {this.state.error?.stack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type FileItem = {
   id: string;
@@ -23,7 +48,7 @@ function formatBytes(bytes: number, decimals = 2) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-export default function App() {
+function AppContent() {
   const [isConnected, setIsConnected] = useState(false);
   const [megaLink, setMegaLink] = useState('https://mega.nz/folder/0jkwjIoY#MwodxmSsZkevB9D5vn93qA');
   const [isConnecting, setIsConnecting] = useState(true);
@@ -289,5 +314,13 @@ export default function App() {
          <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }
