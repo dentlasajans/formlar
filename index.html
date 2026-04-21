@@ -85,19 +85,25 @@
           children.forEach((file, index) => {
             if (file.directory) return;
             const fileName = file.name;
+            const ext = fileName.split('.').pop().toLowerCase();
+            const isOffice = ['doc', 'docx', 'xls', 'xlsx'].includes(ext);
+            let iconName = 'file-text';
+            if (['doc', 'docx'].includes(ext)) iconName = 'file-type-2';
+            else if (['xls', 'xlsx'].includes(ext)) iconName = 'table';
+            else if (['png', 'jpg', 'jpeg'].includes(ext)) iconName = 'image';
             
             html += `
               <div class="flex items-center justify-between p-3 lg:p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all duration-300 border border-white/5 hover:border-white/20 group">
                 <div class="flex items-center gap-3 overflow-hidden">
                   <div class="p-2 bg-white/5 rounded-xl group-hover:scale-110 transition-transform duration-300 border border-white/5 shrink-0">
-                    <i data-lucide="file-text" class="text-neutral-300 w-[18px] h-[18px]"></i>
+                    <i data-lucide="${iconName}" class="text-neutral-300 w-[18px] h-[18px]"></i>
                   </div>
                   <span class="font-medium text-sm lg:text-base text-neutral-200 truncate" title="${fileName}">
                     ${fileName}
                   </span>
                 </div>
-                <button onclick="downloadAndPrint(${index})" id="btn-${index}" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/50 hover:bg-neutral-700/80 border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0 whitespace-nowrap cursor-pointer">
-                  <i data-lucide="printer" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">Yazdır</span>
+                <button onclick="downloadAndPrint(${index})" id="btn-${index}" class="flex items-center gap-1.5 px-3 py-1.5 ${isOffice ? 'bg-indigo-600/30 hover:bg-indigo-500/50' : 'bg-neutral-800/50 hover:bg-neutral-700/80'} border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0 whitespace-nowrap cursor-pointer">
+                  <i data-lucide="${isOffice ? 'download' : 'printer'}" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">${isOffice ? 'İndir' : 'Yazdır'}</span>
                 </button>
               </div>
             `;
@@ -134,17 +140,42 @@
           
           btnText.innerText = "Hazırlanıyor...";
           
-          let mimeType = 'application/pdf';
-          const fileName = file.name.toLowerCase();
-          const isImage = fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg');
+          const fileName = file.name;
+          const ext = fileName.split('.').pop().toLowerCase();
           
-          if (fileName.endsWith('.png')) mimeType = 'image/png';
-          else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) mimeType = 'image/jpeg';
+          const isImage = ['png', 'jpg', 'jpeg'].includes(ext);
+          const isPdf = ext === 'pdf';
+          const isWord = ['doc', 'docx'].includes(ext);
+          const isExcel = ['xls', 'xlsx'].includes(ext);
+          const isOffice = isWord || isExcel;
+          const canPreview = isImage || isPdf;
+
+          let mimeType = 'application/octet-stream';
+          if (isPdf) mimeType = 'application/pdf';
+          else if (ext === 'png') mimeType = 'image/png';
+          else if (['jpg', 'jpeg'].includes(ext)) mimeType = 'image/jpeg';
+          else if (isWord) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          else if (isExcel) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
           
           // 2. Blob oluştur ve Aynı Sekme (Same-Tab) içinde Önizleme Modalı göster
           const blob = new Blob([data], { type: mimeType });
           const url = URL.createObjectURL(blob);
           
+          // Eğer Office dosyası ise önizleme (PDF Yüklenemedi hatası) yapmadan direkt bilgisayara indir
+          if (isOffice) {
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              setTimeout(() => URL.revokeObjectURL(url), 10000);
+              
+              btnText.innerText = originalText;
+              btn.classList.remove("opacity-50", "pointer-events-none");
+              return;
+          }
+
           // Halihazırda açık bir modal varsa temizle
           const existingModal = document.getElementById('mega-preview-modal');
           if (existingModal) existingModal.remove();
@@ -205,7 +236,7 @@
               previewElement.src = url;
               Object.assign(previewElement.style, { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' });
               content.appendChild(previewElement);
-          } else {
+          } else if (isPdf) {
               previewElement = document.createElement('iframe');
               previewElement.src = url;
               Object.assign(previewElement.style, { width: '100%', height: '100%', border: 'none', borderRadius: '8px', backgroundColor: '#525659' });
@@ -246,7 +277,7 @@
                       previewElement.contentWindow.print();
                   } catch(e) {
                       console.log('Native yazdırma çağrısı engellendi. (Sorun değil, PDF viewer kendi yazdır butonuna sahip)', e);
-                      alert("Chrome PDF Eklentisi korumalı modda. Lütfen sayfadaki (genellikle sağ üstte beliren) 🖨️ Yazıcı simgesini kullanınız.");
+                      alert("Chrome PDF Eklentisi korumalı modda. Lütfen PDF (karanlık) alanının sağ üstündeki yerleşik 🖨️ Yazıcı simgesini kullanınız.");
                   }
               }
           };
