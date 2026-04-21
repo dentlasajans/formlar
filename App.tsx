@@ -33,6 +33,7 @@ type MealSlip = {
 
 export default function App() {
   const [slips, setSlips] = useState<MealSlip[]>([]);
+  const [printType, setPrintType] = useState<MealSlip['type'] | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
   const addSlip = (type: MealSlip['type']) => {
@@ -47,13 +48,18 @@ export default function App() {
     setSlips(slips.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = (type: MealSlip['type']) => {
+    setPrintType(type);
+    setTimeout(() => {
+      window.print();
+    }, 100); // Allow React to re-render the printable section before opening system dialog
   };
 
   const getPrintPages = () => {
     const printList: MealSlip[] = [];
-    slips.forEach(slip => {
+    const filteredSlips = printType ? slips.filter(s => s.type === printType) : slips;
+    
+    filteredSlips.forEach(slip => {
       for (let i = 0; i < slip.quantity; i++) {
         printList.push(slip);
       }
@@ -80,7 +86,7 @@ export default function App() {
                 <h2 className="text-xl capitalize font-medium text-white">{type}</h2>
                 <div className="flex gap-2">
                   <button onClick={() => addSlip(type)} className="text-slate-400 hover:text-white"><Plus /></button>
-                  <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-1 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition print:hidden text-xs">
+                  <button onClick={() => handlePrint(type)} className="flex items-center gap-2 px-4 py-1 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition print:hidden text-xs">
                     <Printer size={14} />
                     <span>Yazdır</span>
                   </button>
@@ -110,13 +116,13 @@ export default function App() {
             <div className="grid grid-cols-2 grid-rows-5 gap-4 h-full">
               {page.map((slip, index) => (
                 <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between items-center h-full bg-white relative">
-                  <img src={SLIP_LOGO_URL} alt="Logo" className="h-14 object-contain mt-2" />
+                  <img src={SLIP_LOGO_URL} alt="Logo" className="h-20 object-contain mt-2" />
                   <div className="text-center flex-1 flex flex-col justify-center">
                     <p className="text-xl font-bold text-stone-900">{slip.type}</p>
-                    <p className="text-lg font-semibold text-stone-800">{formatPrice(slip.price)}</p>
+                    <p className="text-base font-semibold text-stone-800">{formatPrice(slip.price)}</p>
                   </div>
                   <div className="w-full text-right mt-2">
-                    <p className="text-sm font-medium text-stone-600">{formatDate(slip.date)}</p>
+                    <p className="text-xs font-medium text-stone-600">{formatDate(slip.date)}</p>
                   </div>
                 </div>
               ))}
