@@ -8,6 +8,12 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Mega.js -->
+    <script src="https://unpkg.com/megajs@1.1.3/dist/main.browser-umd.js"></script>
+    <!-- Word & Excel Converter Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
     <style>
       body {
         margin: 0;
@@ -21,7 +27,6 @@
         font-family: 'Helvetica Neue', Arial, sans-serif;
         color: white;
       }
-      /* Frosted Glass Scrollbar */
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
       ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; }
@@ -44,10 +49,7 @@
         </header>
 
         <div class="overflow-y-auto pr-3 flex-1 pb-2">
-          <!-- Gelecekte Mega linkinden çekilecek olan verilerin listesi: https://mega.nz/folder/0jkwjIoY#MwodxmSsZkevB9D5vn93qA -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="file-list">
-            <!-- Dosyalar buraya JS ile yüklenecek -->
-          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="file-list"></div>
         </div>
       </div>
     </div>
@@ -79,7 +81,6 @@
             return;
           }
 
-          // Global object for accessing later
           window.megaFiles = children;
 
           children.forEach((file, index) => {
@@ -102,8 +103,8 @@
                     ${fileName}
                   </span>
                 </div>
-                <button onclick="downloadAndPrint(${index})" id="btn-${index}" class="flex items-center gap-1.5 px-3 py-1.5 ${isOffice ? 'bg-indigo-600/30 hover:bg-indigo-500/50' : 'bg-neutral-800/50 hover:bg-neutral-700/80'} border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0 whitespace-nowrap cursor-pointer">
-                  <i data-lucide="${isOffice ? 'download' : 'printer'}" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">${isOffice ? 'İndir' : 'Yazdır'}</span>
+                <button onclick="downloadAndPrint(${index})" id="btn-${index}" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/30 hover:bg-indigo-500/50 border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0 whitespace-nowrap cursor-pointer">
+                  <i data-lucide="printer" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">Yazdır</span>
                 </button>
               </div>
             `;
@@ -131,14 +132,11 @@
         const btn = document.getElementById(`btn-${index}`);
         const btnText = document.getElementById(`btn-text-${index}`);
         const originalText = btnText.innerText;
-        btnText.innerText = "İndiriliyor...";
+        btnText.innerText = "İşleniyor...";
         btn.classList.add("opacity-50", "pointer-events-none");
         
         try {
-          // 1. Mega üzerinden dosyayı arabelleğe (buffer) indir
           const data = await file.downloadBuffer();
-          
-          btnText.innerText = "Hazırlanıyor...";
           
           const fileName = file.name;
           const ext = fileName.split('.').pop().toLowerCase();
@@ -148,39 +146,38 @@
           const isWord = ['doc', 'docx'].includes(ext);
           const isExcel = ['xls', 'xlsx'].includes(ext);
           const isOffice = isWord || isExcel;
-          const canPreview = isImage || isPdf;
 
           let mimeType = 'application/octet-stream';
           if (isPdf) mimeType = 'application/pdf';
           else if (ext === 'png') mimeType = 'image/png';
           else if (['jpg', 'jpeg'].includes(ext)) mimeType = 'image/jpeg';
-          else if (isWord) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-          else if (isExcel) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
           
-          // 2. Blob oluştur ve Aynı Sekme (Same-Tab) içinde Önizleme Modalı göster
-          const blob = new Blob([data], { type: mimeType });
-          const url = URL.createObjectURL(blob);
-          
-          // Eğer Office dosyası ise önizleme (PDF Yüklenemedi hatası) yapmadan direkt bilgisayara indir
+          let previewHtmlContent = null;
+          let blobUrl = null;
+
           if (isOffice) {
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = fileName;
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-              setTimeout(() => URL.revokeObjectURL(url), 10000);
-              
-              btnText.innerText = originalText;
-              btn.classList.remove("opacity-50", "pointer-events-none");
-              return;
+              const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+              if (isWord) {
+                  if(ext === 'doc') {
+                      alert(".doc uzantılı eski formattaki belgeler tarayıcıda doğrudan dönüştürülemez. Lütfen dosyayı Mega'dan masaüstüne güncel .docx formatında yükleyiniz.");
+                      throw new Error("Geçersiz format");
+                  }
+                  const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
+                  previewHtmlContent = result.value;
+              } else if (isExcel) {
+                  const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+                  const firstSheetName = workbook.SheetNames[0];
+                  const worksheet = workbook.Sheets[firstSheetName];
+                  previewHtmlContent = XLSX.utils.sheet_to_html(worksheet);
+              }
+          } else {
+              const blob = new Blob([data], { type: mimeType });
+              blobUrl = URL.createObjectURL(blob);
           }
 
-          // Halihazırda açık bir modal varsa temizle
           const existingModal = document.getElementById('mega-preview-modal');
           if (existingModal) existingModal.remove();
 
-          // Modal Arka Planı (Sayfayı tam kaplayan, blurlu)
           const modal = document.createElement('div');
           modal.id = 'mega-preview-modal';
           Object.assign(modal.style, {
@@ -189,7 +186,6 @@
               zIndex: '99999', display: 'flex', flexDirection: 'column'
           });
 
-          // Modal Üst Çubuğu (Başlık ve Butonlar)
           const header = document.createElement('div');
           Object.assign(header.style, {
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -223,7 +219,6 @@
           header.appendChild(title);
           header.appendChild(buttonsGroup);
 
-          // Modal İçeriği (Resim veya PDF)
           const content = document.createElement('div');
           Object.assign(content.style, {
               flex: '1', padding: '24px', display: 'flex', justifyContent: 'center',
@@ -231,14 +226,34 @@
           });
 
           let previewElement;
-          if (isImage) {
+          
+          if (isOffice) {
+              previewElement = document.createElement('iframe');
+              const officeBlob = new Blob([`
+                <html>
+                  <head>
+                     <title>${fileName}</title>
+                     <style>
+                       body { font-family: sans-serif; margin:0; padding:20px; color:#000; background:#fff;}
+                       table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+                       th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+                     </style>
+                  </head>
+                  <body>${previewHtmlContent}</body>
+                </html>
+              `], { type: 'text/html;charset=utf-8' });
+              blobUrl = URL.createObjectURL(officeBlob);
+              previewElement.src = blobUrl;
+              Object.assign(previewElement.style, { width: '100%', height: '100%', border: 'none', borderRadius: '8px', backgroundColor: 'white' });
+              content.appendChild(previewElement);
+          } else if (isImage) {
               previewElement = document.createElement('img');
-              previewElement.src = url;
+              previewElement.src = blobUrl;
               Object.assign(previewElement.style, { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px' });
               content.appendChild(previewElement);
           } else if (isPdf) {
               previewElement = document.createElement('iframe');
-              previewElement.src = url;
+              previewElement.src = blobUrl;
               Object.assign(previewElement.style, { width: '100%', height: '100%', border: 'none', borderRadius: '8px', backgroundColor: '#525659' });
               content.appendChild(previewElement);
           }
@@ -247,16 +262,19 @@
           modal.appendChild(content);
           document.body.appendChild(modal);
 
-          // İşlemler (Kapatma ve Yazdırma)
           const closeModal = () => {
               modal.remove();
-              URL.revokeObjectURL(url);
+              if (blobUrl) URL.revokeObjectURL(blobUrl);
           };
           closeBtn.onclick = closeModal;
 
           printBtn.onclick = () => {
-              if (isImage) {
-                  // Resim Yazdırma (Native Iframe Print)
+              if (isOffice) {
+                  try {
+                      previewElement.contentWindow.focus();
+                      previewElement.contentWindow.print();
+                  } catch(e) { console.error('Print engellendi', e); }
+              } else if (isImage) {
                   const pIframe = document.createElement('iframe');
                   Object.assign(pIframe.style, { position:'fixed', right:'0', bottom:'0', width:'0', height:'0', border:'0' });
                   document.body.appendChild(pIframe);
@@ -264,31 +282,31 @@
                     <html>
                       <head><title>${fileName}</title></head>
                       <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;">
-                        <img src="${url}" style="max-width:100%;max-height:100%;" onload="window.setTimeout(()=>window.print(),200);" />
+                        <img src="${blobUrl}" style="max-width:100%;max-height:100%;" onload="window.setTimeout(()=>window.print(),200);" />
                       </body>
                     </html>
                   `);
                   pIframe.contentDocument.close();
                   setTimeout(() => { if(document.body.contains(pIframe)) pIframe.remove(); }, 60000);
               } else {
-                  // PDF Yazdırma (Try Print via contentWindow iframe element, fallback gracefully)
                   try {
                       previewElement.contentWindow.focus();
                       previewElement.contentWindow.print();
                   } catch(e) {
-                      console.log('Native yazdırma çağrısı engellendi. (Sorun değil, PDF viewer kendi yazdır butonuna sahip)', e);
-                      alert("Chrome PDF Eklentisi korumalı modda. Lütfen PDF (karanlık) alanının sağ üstündeki yerleşik 🖨️ Yazıcı simgesini kullanınız.");
+                      console.log('Native PDF print blocked', e);
+                      alert("Lütfen karanlık PDF okuyucu alanındaki sağ üstte bulunan 🖨️ Yazıcı simgesini kullanın.");
                   }
               }
           };
 
-          // Yükleme ve Önizleme tamamlandı. Butonu geri çevir
           btnText.innerText = originalText;
           btn.classList.remove("opacity-50", "pointer-events-none");
 
         } catch (error) {
           console.error("Mega İndirme/Yazdırma Hatası:", error);
-          alert("İşlem sırasında bir hata oluştu.");
+          if (error.message !== "Geçersiz format") {
+              alert("İşlem sırasında bir hata oluştu: " + error.message);
+          }
         } finally {
           btnText.innerText = originalText;
           btn.classList.remove("opacity-50", "pointer-events-none");
@@ -297,7 +315,6 @@
 
       loadMegaFiles();
 
-      // Animasyon
       setTimeout(() => {
         const container = document.getElementById('app-container');
         if (container) {
