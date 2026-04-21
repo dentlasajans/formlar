@@ -145,52 +145,38 @@
           const blob = new Blob([data], { type: mimeType });
           const url = URL.createObjectURL(blob);
           
-          // 3. Görünmez bir iframe oluştur
-          const iframe = document.createElement('iframe');
-          iframe.style.position = 'fixed';
-          iframe.style.right = '0';
-          iframe.style.bottom = '0';
-          iframe.style.width = '0';
-          iframe.style.height = '0';
-          iframe.style.border = '0';
-          
-          document.body.appendChild(iframe);
-          
-          // 4. Yazdırma mantığını ayarla
+          // 3. Chrome önizleme ve yazdırma penceresi için yeni sekme
           if (isImage) {
-             // Resim ise direkt src vermek yerine html'e gömüp yazdırıyoruz ki daha net otursun
-             iframe.contentDocument.write(`
-               <html>
-                 <head><title>Yazdır - ${fileName}</title></head>
-                 <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;">
-                   <img src="${url}" style="max-width:100%;max-height:100%;" onload="window.setTimeout(() => { window.print(); }, 200);" />
-                 </body>
-               </html>
-             `);
-             iframe.contentDocument.close();
+             const win = window.open('', '_blank');
+             if (win) {
+                 win.document.write(`
+                   <html>
+                     <head><title>Önizleme ve Yazdır - ${fileName}</title></head>
+                     <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#525659;">
+                       <img src="${url}" style="max-width:100%;max-height:100%;object-fit:contain;" onload="window.setTimeout(() => { window.print(); }, 500);" />
+                     </body>
+                   </html>
+                 `);
+                 win.document.close();
+             } else {
+                 alert("Açılır pencere (pop-up) engellendi. Lütfen tarayıcınızdan pop-up'lara izin verin.");
+             }
           } else {
-             // PDF ise
-             iframe.src = url;
-             iframe.onload = () => {
-                setTimeout(() => {
-                   try {
-                      iframe.contentWindow.focus();
-                      iframe.contentWindow.print();
-                   } catch (e) {
-                      console.error("Iframe PDF yazdırma engellendi:", e);
-                      alert("Güvenlik ayarlarınızdan (veya reklam engelleyicilerden) dolayı sessiz yazdırma engellendi. Dosya sekmesiyle yazdırmayı deneyiniz.");
-                   }
-                }, 500); // PDF eklentisinin yüklenmesine yarım saniye mühlet
-             };
+             // PDF dosyaları için
+             const win = window.open(url, '_blank');
+             if (win) {
+                 // Chrome'da native PDF önizleyici açılır. 
+                 // Native önizleyicide otomatik yazdırmayı tetiklemek için:
+                 setTimeout(() => {
+                   try { win.print(); } catch(e) { console.warn("Native print API çağrısı engellendi, kullanıcı kendisi yazdırabilir."); }
+                 }, 800);
+             } else {
+                 alert("Açılır pencere (pop-up) engellendi. Lütfen tarayıcınızdan pop-up'lara izin verin.");
+             }
           }
 
-          // Bellek sızıntılarını önlemek için iframe ve URL'i 2 dakika sonra temizle
-          setTimeout(() => {
-             if(document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-             }
-             URL.revokeObjectURL(url);
-          }, 120000);
+          // Bellek sızıntılarını önlemek URL'i 2 dakika sonra temizle
+          setTimeout(() => URL.revokeObjectURL(url), 120000);
 
         } catch (error) {
           console.error("Mega İndirme/Yazdırma Hatası:", error);
