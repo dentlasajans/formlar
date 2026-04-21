@@ -127,18 +127,19 @@
         const btn = document.getElementById(`btn-${index}`);
         const btnText = document.getElementById(`btn-text-${index}`);
         const originalText = btnText.innerText;
-        btnText.innerText = "Yazdırılıyor...";
+        btnText.innerText = "İndiriliyor...";
         btn.classList.add("opacity-50", "pointer-events-none");
         
         try {
+          // 1. Mega üzerinden dosyayı arabelleğe (buffer) indir
           const data = await file.downloadBuffer();
-          let mimeType = 'application/octet-stream';
+          
+          btnText.innerText = "Yazdırılıyor...";
+          
+          let mimeType = 'application/pdf';
           let printType = 'pdf'; // Default for printJS
           
-          if (file.name.toLowerCase().endsWith('.pdf')) {
-             mimeType = 'application/pdf';
-             printType = 'pdf';
-          } else if (file.name.toLowerCase().endsWith('.png')) {
+          if (file.name.toLowerCase().endsWith('.png')) {
              mimeType = 'image/png';
              printType = 'image';
           } else if (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) {
@@ -146,18 +147,48 @@
              printType = 'image';
           }
           
+          // 2. Blob oluştur ve Base64 formatına çevir (Gizli Iframe ve Blob URL sorunlarını atlatmak için)
           const blob = new Blob([data], { type: mimeType });
-          const url = URL.createObjectURL(blob);
+          const reader = new FileReader();
           
-          // PrintJS kütüphanesi ile kullanıcıya sekme açmadan direkt yazdır dialogunu tetikle
-          printJS({ printable: url, type: printType });
+          reader.onloadend = () => {
+             try {
+                // reader.result şuna benzerdir: "data:application/pdf;base64,JVBERi0xLjQK..." (virgülden sonrasını alıyoruz)
+                const base64data = reader.result.split(',')[1];
+                
+                // 3. PrintJS'ye doğrudan Base64 besleyerek yazdırma penceresini tetikle
+                printJS({ 
+                  printable: base64data, 
+                  type: printType, 
+                  base64: true,
+                  onError: (err) => {
+                    console.error("PrintJS Hatası: ", err);
+                    alert("Yazdırma işlemi tarayıcı tarafından engellendi.");
+                  }
+                });
+             } catch (e) {
+                console.error("Base64 Dönüştürme/Yazdırma Hatası: ", e);
+                alert("Yazdırmaya hazırlanırken bir hata oluştu.");
+             } finally {
+                // İşlem bittiğinde butonu eski haline getir
+                btnText.innerText = originalText;
+                btn.classList.remove("opacity-50", "pointer-events-none");
+             }
+          };
           
-          // Cleanup bellek sızıntısını önlemek için (biraz gecikmeli)
-          setTimeout(() => URL.revokeObjectURL(url), 10000);
+          reader.onerror = () => {
+             console.error("FileReader Hatası");
+             alert("Dosya okunamadı.");
+             btnText.innerText = originalText;
+             btn.classList.remove("opacity-50", "pointer-events-none");
+          };
+          
+          // Blob okumayı başlat
+          reader.readAsDataURL(blob);
+
         } catch (error) {
-          console.error(error);
-          alert("Dosya yazdırılırken bir hata oluştu.");
-        } finally {
+          console.error("Mega İndirme Hatası:", error);
+          alert("Dosya sunucudan indirilirken bir hata oluştu.");
           btnText.innerText = originalText;
           btn.classList.remove("opacity-50", "pointer-events-none");
         }
