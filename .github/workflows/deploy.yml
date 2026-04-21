@@ -17,12 +17,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
 
       - name: Install dependencies
         run: |
           ls -la
-          npm ci
+          npm install
 
       - name: Build
         run: npm run build
