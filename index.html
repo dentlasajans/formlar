@@ -10,8 +10,12 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Mega.js -->
     <script src="https://unpkg.com/megajs@1.1.3/dist/main.browser-umd.js"></script>
-    <!-- Word & Excel Converter Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    
+    <!-- JSZip for Docx Preview -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Modern Docx Renderer (Supports layout much better than Mammoth) -->
+    <script src="https://unpkg.com/docx-preview@0.3.2/dist/docx-preview.min.js"></script>
+    <!-- SheetJS for Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -31,6 +35,29 @@
       ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); border-radius: 8px; }
       ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 8px; }
       ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+      
+      /* Print Rules to print Modal Content Native */
+      @media print {
+        body { background: white !important; color: black !important; background-image: none !important; }
+        #app-container { display: none !important; }
+        #mega-preview-modal {
+          position: static !important;
+          background: white !important;
+          width: 100% !important;
+          height: auto !important;
+          backdrop-filter: none !important;
+          z-index: auto !important;
+        }
+        #mega-preview-modal > div:first-child { display: none !important; } /* Hide modal Header */
+        #mega-preview-modal > div:last-child {
+          padding: 0 !important;
+          overflow: visible !important;
+          height: auto !important;
+        }
+        .docx-wrapper { padding: 0 !important; background: white !important; }
+        .docx-wrapper > section { box-shadow: none !important; margin: 0 !important; padding: 0 !important; }
+        ::-webkit-scrollbar { display: none !important; }
+      }
     </style>
   </head>
   <body>
@@ -148,29 +175,13 @@
           const isOffice = isWord || isExcel;
 
           let mimeType = 'application/octet-stream';
+          let blobUrl = null;
+
           if (isPdf) mimeType = 'application/pdf';
           else if (ext === 'png') mimeType = 'image/png';
           else if (['jpg', 'jpeg'].includes(ext)) mimeType = 'image/jpeg';
           
-          let previewHtmlContent = null;
-          let blobUrl = null;
-
-          if (isOffice) {
-              const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-              if (isWord) {
-                  if(ext === 'doc') {
-                      alert(".doc uzantılı eski formattaki belgeler tarayıcıda doğrudan dönüştürülemez. Lütfen dosyayı Mega'dan masaüstüne güncel .docx formatında yükleyiniz.");
-                      throw new Error("Geçersiz format");
-                  }
-                  const result = await mammoth.convertToHtml({arrayBuffer: arrayBuffer});
-                  previewHtmlContent = result.value;
-              } else if (isExcel) {
-                  const workbook = XLSX.read(arrayBuffer, {type: 'array'});
-                  const firstSheetName = workbook.SheetNames[0];
-                  const worksheet = workbook.Sheets[firstSheetName];
-                  previewHtmlContent = XLSX.utils.sheet_to_html(worksheet);
-              }
-          } else {
+          if (!isOffice) {
               const blob = new Blob([data], { type: mimeType });
               blobUrl = URL.createObjectURL(blob);
           }
@@ -225,27 +236,39 @@
               alignItems: 'center', overflow: 'hidden'
           });
 
-          let previewElement;
+          let previewElement = null;
           
           if (isOffice) {
-              previewElement = document.createElement('iframe');
-              const officeBlob = new Blob([`
-                <html>
-                  <head>
-                     <title>${fileName}</title>
-                     <style>
-                       body { font-family: sans-serif; margin:0; padding:20px; color:#000; background:#fff;}
-                       table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-                       th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
-                     </style>
-                  </head>
-                  <body>${previewHtmlContent}</body>
-                </html>
-              `], { type: 'text/html;charset=utf-8' });
-              blobUrl = URL.createObjectURL(officeBlob);
-              previewElement.src = blobUrl;
-              Object.assign(previewElement.style, { width: '100%', height: '100%', border: 'none', borderRadius: '8px', backgroundColor: 'white' });
+              previewElement = document.createElement('div');
+              Object.assign(previewElement.style, { width: '100%', height: '100%', backgroundColor: 'white', overflow: 'auto', borderRadius: '8px' });
               content.appendChild(previewElement);
+              
+              const blobData = new Blob([data], { type: mimeType });
+              
+              if (isWord) {
+                  if(ext === 'doc') {
+                      alert(".doc uzantılı eski belgeler desteklenmiyor. Lütfen Mega'dan .docx olarak güncelleyiniz.");
+                      throw new Error("Geçersiz format");
+                  }
+                  // Render Word accurately to the modal div
+                  await docx.renderAsync(blobData, previewElement, previewElement, { inWrapper: true, ignoreLastRenderedPageBreak: false });
+              } else if (isExcel) {
+                  // Render basic Excel layout
+                  const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+                  const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+                  const firstSheetName = workbook.SheetNames[0];
+                  const worksheet = workbook.Sheets[firstSheetName];
+                  const htmlTable = XLSX.utils.sheet_to_html(worksheet, { id: 'excel-table' });
+                  
+                  previewElement.innerHTML = `
+                    <style>
+                       #excel-table { border-collapse: collapse; width: 100%; max-width: 1000px; margin: 0 auto; font-family: sans-serif; font-size: 13px; color: black; }
+                       #excel-table td, #excel-table th { border: 1px solid #cbd5e1; padding: 6px 10px; white-space: nowrap; }
+                       #excel-table tr:first-child { font-weight: bold; background-color: #f1f5f9; }
+                    </style>
+                    <div style="padding: 20px;">${htmlTable}</div>
+                  `;
+              }
           } else if (isImage) {
               previewElement = document.createElement('img');
               previewElement.src = blobUrl;
@@ -269,26 +292,12 @@
           closeBtn.onclick = closeModal;
 
           printBtn.onclick = () => {
-              if (isOffice) {
-                  try {
-                      previewElement.contentWindow.focus();
-                      previewElement.contentWindow.print();
-                  } catch(e) { console.error('Print engellendi', e); }
-              } else if (isImage) {
-                  const pIframe = document.createElement('iframe');
-                  Object.assign(pIframe.style, { position:'fixed', right:'0', bottom:'0', width:'0', height:'0', border:'0' });
-                  document.body.appendChild(pIframe);
-                  pIframe.contentDocument.write(`
-                    <html>
-                      <head><title>${fileName}</title></head>
-                      <body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;">
-                        <img src="${blobUrl}" style="max-width:100%;max-height:100%;" onload="window.setTimeout(()=>window.print(),200);" />
-                      </body>
-                    </html>
-                  `);
-                  pIframe.contentDocument.close();
-                  setTimeout(() => { if(document.body.contains(pIframe)) pIframe.remove(); }, 60000);
+              if (isOffice || isImage) {
+                  // For images & parsed Office documents, we leverage Native window.print().
+                  // CSS `@media print` hides #app-container and modal headers automatically!
+                  window.print();
               } else {
+                  // For PDF iframes, native frame print
                   try {
                       previewElement.contentWindow.focus();
                       previewElement.contentWindow.print();
