@@ -1,9 +1,4 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useRef, ChangeEvent } from 'react';
+import React, { useState, useRef } from 'react';
 import { Plus, Trash2, Printer } from 'lucide-react';
 
 const LOGO_URL = 'https://res.cloudinary.com/dejx0brol/image/upload/v1776755327/Ads%C4%B1z_tasar%C4%B1m_awydxr.png';
@@ -37,7 +32,7 @@ export default function App() {
   };
 
   const getAllSlipsToPrint = () => {
-    const printList = [];
+    const printList: MealSlip[] = [];
     slips.forEach(slip => {
       for (let i = 0; i < slip.quantity; i++) {
         printList.push(slip);
@@ -87,7 +82,7 @@ export default function App() {
       <div ref={printRef} className="hidden print:block absolute inset-0 bg-white">
         <div className="grid grid-cols-2 grid-rows-4 gap-4 p-8 h-screen">
           {getAllSlipsToPrint().map((slip, index) => (
-            <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between h-full">
+            <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between h-full bg-white">
               <div className="flex justify-between items-start">
                 <img src={LOGO_URL} alt="Logo" className="w-16 h-16 object-contain" />
                 <span className="text-xs font-mono text-stone-900">{slip.type.toUpperCase()}</span>
@@ -104,4 +99,3 @@ export default function App() {
     </div>
   );
 }
-
