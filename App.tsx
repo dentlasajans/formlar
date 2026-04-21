@@ -31,14 +31,19 @@ export default function App() {
     window.print();
   };
 
-  const getAllSlipsToPrint = () => {
+  const getPrintPages = () => {
     const printList: MealSlip[] = [];
     slips.forEach(slip => {
       for (let i = 0; i < slip.quantity; i++) {
         printList.push(slip);
       }
     });
-    return printList;
+
+    const pages = [];
+    for (let i = 0; i < printList.length; i += 10) {
+      pages.push(printList.slice(i, i + 10));
+    }
+    return pages;
   };
 
   return (
@@ -80,21 +85,25 @@ export default function App() {
 
       {/* Printable Area */}
       <div ref={printRef} className="hidden print:block absolute inset-0 bg-white">
-        <div className="grid grid-cols-2 grid-rows-4 gap-4 p-8 h-screen">
-          {getAllSlipsToPrint().map((slip, index) => (
-            <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between h-full bg-white">
-              <div className="flex justify-between items-start">
-                <img src={LOGO_URL} alt="Logo" className="w-16 h-16 object-contain" />
-                <span className="text-xs font-mono text-stone-900">{slip.type.toUpperCase()}</span>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-stone-900">{slip.type}</p>
-                <p className="text-sm text-stone-600">{slip.date}</p>
-              </div>
-              <p className="text-right font-bold text-xl text-stone-900">{slip.price} TL</p>
+        {getPrintPages().map((page, pageIndex) => (
+          <div key={pageIndex} className="h-screen p-8 box-border" style={{ pageBreakAfter: 'always' }}>
+            <div className="grid grid-cols-2 grid-rows-5 gap-4 h-full">
+              {page.map((slip, index) => (
+                <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between items-center h-full bg-white relative">
+                  <span className="absolute top-4 left-4 text-[10px] font-mono text-stone-400">{slip.type.toUpperCase()}</span>
+                  <img src={LOGO_URL} alt="Logo" className="h-14 object-contain mt-2" />
+                  <div className="text-center flex-1 flex flex-col justify-center">
+                    <p className="text-xl font-bold text-stone-900">{slip.type}</p>
+                    <p className="text-lg font-semibold text-stone-800">{slip.price} TL</p>
+                  </div>
+                  <div className="w-full text-right mt-2">
+                    <p className="text-sm font-medium text-stone-600">{slip.date}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </div>
   );
