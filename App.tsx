@@ -2,6 +2,26 @@ import React, { useState, useRef } from 'react';
 import { Plus, Trash2, Printer } from 'lucide-react';
 
 const LOGO_URL = 'https://res.cloudinary.com/dejx0brol/image/upload/v1776755327/Ads%C4%B1z_tasar%C4%B1m_awydxr.png';
+const SLIP_LOGO_URL = 'https://res.cloudinary.com/dejx0brol/image/upload/v1776753226/Ads%C4%B1z_tasar%C4%B1m_rgmaqg.png';
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  return date.toLocaleDateString('tr-TR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  });
+};
+
+const formatPrice = (priceStr: string) => {
+  if (!priceStr) return '00,00₺';
+  const num = parseFloat(priceStr.toString().replace(',', '.'));
+  if (isNaN(num)) return `${priceStr}₺`;
+  return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '₺';
+};
 
 type MealSlip = {
   id: string;
@@ -90,14 +110,13 @@ export default function App() {
             <div className="grid grid-cols-2 grid-rows-5 gap-4 h-full">
               {page.map((slip, index) => (
                 <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between items-center h-full bg-white relative">
-                  <span className="absolute top-4 left-4 text-[10px] font-mono text-stone-400">{slip.type.toUpperCase()}</span>
-                  <img src={LOGO_URL} alt="Logo" className="h-14 object-contain mt-2" />
+                  <img src={SLIP_LOGO_URL} alt="Logo" className="h-14 object-contain mt-2" />
                   <div className="text-center flex-1 flex flex-col justify-center">
                     <p className="text-xl font-bold text-stone-900">{slip.type}</p>
-                    <p className="text-lg font-semibold text-stone-800">{slip.price} TL</p>
+                    <p className="text-lg font-semibold text-stone-800">{formatPrice(slip.price)}</p>
                   </div>
                   <div className="w-full text-right mt-2">
-                    <p className="text-sm font-medium text-stone-600">{slip.date}</p>
+                    <p className="text-sm font-medium text-stone-600">{formatDate(slip.date)}</p>
                   </div>
                 </div>
               ))}
