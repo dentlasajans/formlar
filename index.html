@@ -52,38 +52,112 @@
       </div>
     </div>
 
-    <script>
-      // 50 Adet Form Belgesini Dinamik Olarak Oluşturma
+    <script type="module">
+      import { File } from 'https://esm.sh/megajs@1.3.1?bundle';
+
       const fileList = document.getElementById('file-list');
-      let html = '';
-      for(let i=1; i<=50; i++) {
-         let fileName = `Form_Belgesi_${i}.pdf`;
-         html += `
-          <div class="flex items-center justify-between p-3 lg:p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all duration-300 border border-white/5 hover:border-white/20 group">
-            <div class="flex items-center gap-3 overflow-hidden">
-              <div class="p-2 bg-white/5 rounded-xl group-hover:scale-110 transition-transform duration-300 border border-white/5 shrink-0">
-                <i data-lucide="file-text" class="text-neutral-300 w-[18px] h-[18px]"></i>
-              </div>
-              <span class="font-medium text-sm lg:text-base text-neutral-200 truncate">
-                ${fileName}
-              </span>
-            </div>
-            <button onclick="window.print()" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/50 hover:bg-neutral-700/80 border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0">
-              <i data-lucide="printer" class="w-[14px] h-[14px]"></i> Yazdır
-            </button>
+      const folderUrl = 'https://mega.nz/folder/0jkwjIoY#MwodxmSsZkevB9D5vn93qA';
+
+      async function loadMegaFiles() {
+        fileList.innerHTML = `
+          <div class="col-span-full flex flex-col items-center justify-center py-16 text-neutral-400">
+            <i data-lucide="loader-2" class="w-10 h-10 animate-spin mb-4 text-neutral-500"></i>
+            <span class="text-sm font-medium">Mega.nz üzerinden dosyalar senkronize ediliyor...</span>
           </div>
-         `;
+        `;
+        lucide.createIcons();
+
+        try {
+          const folder = File.fromURL(folderUrl);
+          await folder.loadAttributes();
+          
+          let html = '';
+          const children = folder.children || [];
+          
+          if (children.length === 0) {
+            fileList.innerHTML = '<div class="col-span-full text-center text-neutral-400 py-8">Klasörde dosya bulunamadı.</div>';
+            return;
+          }
+
+          // Global object for accessing later
+          window.megaFiles = children;
+
+          children.forEach((file, index) => {
+            if (file.directory) return;
+            const fileName = file.name;
+            
+            html += `
+              <div class="flex items-center justify-between p-3 lg:p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all duration-300 border border-white/5 hover:border-white/20 group">
+                <div class="flex items-center gap-3 overflow-hidden">
+                  <div class="p-2 bg-white/5 rounded-xl group-hover:scale-110 transition-transform duration-300 border border-white/5 shrink-0">
+                    <i data-lucide="file-text" class="text-neutral-300 w-[18px] h-[18px]"></i>
+                  </div>
+                  <span class="font-medium text-sm lg:text-base text-neutral-200 truncate" title="${fileName}">
+                    ${fileName}
+                  </span>
+                </div>
+                <button onclick="downloadAndPrint(${index})" id="btn-${index}" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/50 hover:bg-neutral-700/80 border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0 whitespace-nowrap cursor-pointer">
+                  <i data-lucide="printer" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">Aç / Yazdır</span>
+                </button>
+              </div>
+            `;
+          });
+          
+          fileList.innerHTML = html;
+          lucide.createIcons();
+
+        } catch (error) {
+          console.error("Mega.nz Fetch Error:", error);
+          fileList.innerHTML = `
+            <div class="col-span-full flex flex-col items-center justify-center py-12 text-red-400/80">
+              <i data-lucide="alert-circle" class="w-10 h-10 mb-4 opacity-80"></i>
+              <span class="font-medium">Mega klasör verileri alınamadı. Linki kontrol ediniz.</span>
+            </div>
+          `;
+          lucide.createIcons();
+        }
       }
-      fileList.innerHTML = html;
 
-      // Lucide ikonlarını sayfaya uygula
-      lucide.createIcons();
+      window.downloadAndPrint = async (index) => {
+        const file = window.megaFiles[index];
+        if (!file) return;
+        
+        const btn = document.getElementById(`btn-${index}`);
+        const btnText = document.getElementById(`btn-text-${index}`);
+        const originalText = btnText.innerText;
+        btnText.innerText = "Bekleyin...";
+        btn.classList.add("opacity-50", "pointer-events-none");
+        
+        try {
+          const data = await file.downloadBuffer();
+          let mimeType = 'application/octet-stream';
+          if (file.name.toLowerCase().endsWith('.pdf')) mimeType = 'application/pdf';
+          else if (file.name.toLowerCase().endsWith('.png')) mimeType = 'image/png';
+          else if (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) mimeType = 'image/jpeg';
+          
+          const blob = new Blob([data], { type: mimeType });
+          const url = URL.createObjectURL(blob);
+          
+          // Yeni sekmede açar (PDF ise tarayıcı yazdır menüsüne izin verir)
+          window.open(url, '_blank');
+        } catch (error) {
+          console.error(error);
+          alert("Dosya yüklenirken bir hata oluştu.");
+        } finally {
+          btnText.innerText = originalText;
+          btn.classList.remove("opacity-50", "pointer-events-none");
+        }
+      };
 
-      // Giriş Animasyonu (motion/react yerine vanilla JS transizyonu)
+      loadMegaFiles();
+
+      // Animasyon
       setTimeout(() => {
         const container = document.getElementById('app-container');
-        container.classList.remove('opacity-0', 'scale-95', 'translate-y-4');
-        container.classList.add('opacity-100', 'scale-100', 'translate-y-0');
+        if (container) {
+          container.classList.remove('opacity-0', 'scale-95', 'translate-y-4');
+          container.classList.add('opacity-100', 'scale-100', 'translate-y-0');
+        }
       }, 100);
     </script>
   </body>
