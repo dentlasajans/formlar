@@ -3,116 +3,105 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useRef, ChangeEvent } from 'react';
+import { Plus, Trash2, Printer } from 'lucide-react';
 
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
+const LOGO_URL = 'https://res.cloudinary.com/dejx0brol/image/upload/v1776755327/Ads%C4%B1z_tasar%C4%B1m_awydxr.png';
 
-interface FileItem {
-  name: string;
-  handle: string;
-}
+type MealSlip = {
+  id: string;
+  type: 'Kahvaltı' | 'Öğle Yemeği' | 'Akşam Yemeği';
+  date: string;
+  price: string;
+  quantity: number;
+};
 
 export default function App() {
-  const [files, setFiles] = useState<FileItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [slips, setSlips] = useState<MealSlip[]>([]);
+  const printRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetch('/api/files')
-      .then(res => res.json())
-      .then(data => {
-        setFiles(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch files:', err);
-        setLoading(false);
-      });
-  }, []);
+  const addSlip = (type: MealSlip['type']) => {
+    setSlips([...slips, { id: crypto.randomUUID(), type, date: new Date().toISOString().split('T')[0], price: '', quantity: 1 }]);
+  };
+
+  const removeSlip = (id: string) => {
+    setSlips(slips.filter(s => s.id !== id));
+  };
+
+  const updateSlip = (id: string, field: keyof MealSlip, value: any) => {
+    setSlips(slips.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const getAllSlipsToPrint = () => {
+    const printList = [];
+    slips.forEach(slip => {
+      for (let i = 0; i < slip.quantity; i++) {
+        printList.push(slip);
+      }
+    });
+    return printList;
+  };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
-      <aside className="w-60 bg-slate-950 text-slate-400 flex flex-col h-full">
-        <div className="p-6 mb-4">
-          <div className="flex items-center gap-2 font-bold text-white text-xl">
-            <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-xs">⚡</div>
-            StaticEngine
-          </div>
-          <p className="text-xs mt-1 text-slate-500">v2.4.0 • GH-IO Ready</p>
-        </div>
-        <nav className="flex-1">
-          <div className="py-3 px-5 flex items-center gap-3 rounded-lg mx-3 cursor-pointer bg-slate-900 text-white font-medium my-1">
-            <span className="text-lg">⊞</span> Dashboard
-          </div>
-          <div className="py-3 px-5 flex items-center gap-3 rounded-lg mx-3 cursor-pointer hover:bg-slate-900 hover:text-white transition-colors my-1">
-            <span className="text-lg">◈</span> Repositories
-          </div>
-          <div className="py-3 px-5 flex items-center gap-3 rounded-lg mx-3 cursor-pointer hover:bg-slate-900 hover:text-white transition-colors my-1">
-            <span className="text-lg">⚗️</span> Performance
-          </div>
-          <div className="py-3 px-5 flex items-center gap-3 rounded-lg mx-3 cursor-pointer hover:bg-slate-900 hover:text-white transition-colors my-1">
-            <span className="text-lg">⚙</span> Settings
-          </div>
-        </nav>
-        <div className="p-6 mt-auto">
-          <div className="bg-slate-900 p-4 rounded-xl text-xs">
-            <p className="text-slate-400 mb-2 uppercase tracking-wider font-semibold">Usage Limits</p>
-            <div className="w-full bg-slate-800 h-1.5 rounded-full mb-1">
-              <div className="bg-indigo-400 h-1.5 rounded-full w-1/3"></div>
-            </div>
-            <p className="text-slate-300">32% of build quota used</p>
-          </div>
-        </div>
-      </aside>
-      <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b border-slate-200 bg-white flex items-center justify-between px-8">
-          <h1 className="text-lg font-semibold">Project Overview</h1>
-          <div className="flex items-center gap-4 text-sm font-medium">
-            <span className="text-slate-500">Status:</span>
-            <span className="flex items-center gap-2 text-emerald-600">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full"></span> Live on gh-pages
-            </span>
-            <button className="ml-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">New Project</button>
-          </div>
+    <div className="min-h-screen mesh-gradient p-8 font-sans text-slate-200">
+      <div className="max-w-4xl mx-auto">
+        <header className="mb-8 flex flex-col items-center gap-4 glass p-6 rounded-2xl shadow-sm">
+          <img src={LOGO_URL} alt="Logo" className="w-48 h-48 object-contain" />
         </header>
-        <div className="p-8 grid grid-cols-3 gap-6 h-full content-start">
-          <div className="col-span-2 bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="font-bold">MEGA.nz Files</h2>
-              <span className="px-3 py-1 rounded-full text-[11px] font-bold uppercase bg-slate-100 text-slate-600">
-                {loading ? 'Loading...' : `${files.length} files found`}
-              </span>
-            </div>
-            <div className="space-y-4">
-              {files.map((file) => (
-                <div key={file.handle} className="flex items-center justify-between border-b border-slate-50 pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">📄</div>
-                    <div>
-                      <p className="text-sm font-bold">{file.name}</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => alert(`Print request for: ${file.name}`)}
-                    className="px-4 py-2 text-xs font-bold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50"
-                  >
-                    Print
+
+        <main className="space-y-6">
+          {(['Kahvaltı', 'Öğle Yemeği', 'Akşam Yemeği'] as const).map(type => (
+            <section key={type} className="glass-card p-6 rounded-2xl shadow-sm">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl capitalize font-medium text-white">{type}</h2>
+                <div className="flex gap-2">
+                  <button onClick={() => addSlip(type)} className="text-slate-400 hover:text-white"><Plus /></button>
+                  <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-1 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition print:hidden text-xs">
+                    <Printer size={14} />
+                    <span>Yazdır</span>
                   </button>
                 </div>
-              ))}
-              {!loading && files.length === 0 && <p className="text-slate-500 text-sm">No Word or Excel files found.</p>}
+              </div>
+              <div className="space-y-4">
+                {slips.filter(s => s.type === type).map(slip => (
+                  <div key={slip.id} className="grid grid-cols-3 gap-4 items-center p-4 bg-white/5 rounded-xl">
+                    <input type="date" value={slip.date} onChange={(e) => updateSlip(slip.id, 'date', e.target.value)} className="input-field" />
+                    <input type="text" placeholder="Fiyat" value={slip.price} onChange={(e) => updateSlip(slip.id, 'price', e.target.value)} className="input-field" />
+                    <div className="flex gap-2 items-center">
+                      <input type="number" min="1" value={slip.quantity} onChange={(e) => updateSlip(slip.id, 'quantity', parseInt(e.target.value))} className="input-field" />
+                      <button onClick={() => removeSlip(slip.id)} className="text-red-400 hover:text-red-600"><Trash2 /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </main>
+      </div>
+
+      {/* Printable Area */}
+      <div ref={printRef} className="hidden print:block absolute inset-0 bg-white">
+        <div className="grid grid-cols-2 grid-rows-4 gap-4 p-8 h-screen">
+          {getAllSlipsToPrint().map((slip, index) => (
+            <div key={index} className="border-2 border-stone-800 p-4 rounded-xl flex flex-col justify-between h-full">
+              <div className="flex justify-between items-start">
+                <img src={LOGO_URL} alt="Logo" className="w-16 h-16 object-contain" />
+                <span className="text-xs font-mono text-stone-900">{slip.type.toUpperCase()}</span>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold text-stone-900">{slip.type}</p>
+                <p className="text-sm text-stone-600">{slip.date}</p>
+              </div>
+              <p className="text-right font-bold text-xl text-stone-900">{slip.price} TL</p>
             </div>
-          </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm flex flex-col items-center justify-center text-center">
-            <h3 className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-4">Lighthouse Score</h3>
-            <div className="w-16 h-16 rounded-full flex items-center justify-center border-4 border-emerald-500 font-bold text-emerald-600 text-xl mb-4">99</div>
-            <p className="text-sm font-bold">Excellent Performance</p>
-            <p className="text-xs text-slate-400 mt-2">Your static build is optimized for fast TTFB.</p>
-          </div>
+          ))}
         </div>
-      </main>
+      </div>
     </div>
   );
 }
+

@@ -1,6 +1,6 @@
 {
-  "name": "High-Performance Static Web App",
-  "description": "A performance-focused web application designed for seamless hosting on GitHub Pages as a static SPA.",
+  "name": "Yemek Fişim",
+  "description": "Yemek fişlerini kolayca tasarlayın, düzenleyin ve toplu olarak yazdırın.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

@@ -1,7 +1,25 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+@layer base {
+  body {
+    @apply bg-[#0f172a] text-slate-200;
+  }
+
+  .mesh-gradient {
+    background: radial-gradient(circle at 0% 0%, #1e293b 0%, transparent 50%),
+                radial-gradient(circle at 100% 100%, #312e81 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, #1e1b4b 0%, transparent 100%);
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+  .glass-card {
+    @apply bg-white/[0.03] border border-white/10 rounded-xl;
+  }
+  .input-field {
+    @apply bg-black/20 border border-white/10 rounded-md p-2 text-sm text-slate-200 w-full;
+  }
 }
