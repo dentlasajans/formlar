@@ -8,6 +8,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Print.js for direct silent printing -->
+    <script src="https://unpkg.com/print-js@1.6.0/dist/print.js"></script>
     <style>
       body {
         margin: 0;
@@ -97,7 +99,7 @@
                   </span>
                 </div>
                 <button onclick="downloadAndPrint(${index})" id="btn-${index}" class="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800/50 hover:bg-neutral-700/80 border border-white/10 rounded-lg text-xs lg:text-sm text-neutral-200 transition-colors shrink-0 whitespace-nowrap cursor-pointer">
-                  <i data-lucide="printer" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">Aç / Yazdır</span>
+                  <i data-lucide="printer" class="w-[14px] h-[14px]"></i> <span id="btn-text-${index}">Yazdır</span>
                 </button>
               </div>
             `;
@@ -125,24 +127,36 @@
         const btn = document.getElementById(`btn-${index}`);
         const btnText = document.getElementById(`btn-text-${index}`);
         const originalText = btnText.innerText;
-        btnText.innerText = "Bekleyin...";
+        btnText.innerText = "Yazdırılıyor...";
         btn.classList.add("opacity-50", "pointer-events-none");
         
         try {
           const data = await file.downloadBuffer();
           let mimeType = 'application/octet-stream';
-          if (file.name.toLowerCase().endsWith('.pdf')) mimeType = 'application/pdf';
-          else if (file.name.toLowerCase().endsWith('.png')) mimeType = 'image/png';
-          else if (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) mimeType = 'image/jpeg';
+          let printType = 'pdf'; // Default for printJS
+          
+          if (file.name.toLowerCase().endsWith('.pdf')) {
+             mimeType = 'application/pdf';
+             printType = 'pdf';
+          } else if (file.name.toLowerCase().endsWith('.png')) {
+             mimeType = 'image/png';
+             printType = 'image';
+          } else if (file.name.toLowerCase().endsWith('.jpg') || file.name.toLowerCase().endsWith('.jpeg')) {
+             mimeType = 'image/jpeg';
+             printType = 'image';
+          }
           
           const blob = new Blob([data], { type: mimeType });
           const url = URL.createObjectURL(blob);
           
-          // Yeni sekmede açar (PDF ise tarayıcı yazdır menüsüne izin verir)
-          window.open(url, '_blank');
+          // PrintJS kütüphanesi ile kullanıcıya sekme açmadan direkt yazdır dialogunu tetikle
+          printJS({ printable: url, type: printType });
+          
+          // Cleanup bellek sızıntısını önlemek için (biraz gecikmeli)
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
         } catch (error) {
           console.error(error);
-          alert("Dosya yüklenirken bir hata oluştu.");
+          alert("Dosya yazdırılırken bir hata oluştu.");
         } finally {
           btnText.innerText = originalText;
           btn.classList.remove("opacity-50", "pointer-events-none");
